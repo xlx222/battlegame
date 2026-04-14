@@ -17,6 +17,18 @@ const NAME_POOL = ['赵云', '关羽', '张飞', '黄忠', '马超', '曹仁', '
 const SKILL_POOL = ['强袭', '坚守', '激励', '火计', '统御', '奇谋', '筑垒', '疾驰', '洞察', '号令'];
 const EQUIP_POOL = ['铁甲', '长枪', '良弓', '战马', '军旗', '皮甲', '重盾', '兵书', '宝刀', '投石器'];
 const CITY_NAME_POOL = ['长安', '洛阳', '邺城', '许昌', '晋阳', '北平', '襄平', '成都', '汉中', '江州', '云南', '永安', '武都', '梓潼', '建业', '柴桑', '会稽', '庐江', '寿春', '长沙', '交州', '南海', '青州', '徐州', '兖州', '冀州', '凉州', '荆州', '扬州', '益州', '雍州', '幽州', '并州', '汝南', '陈留', '濮阳', '弘农', '上庸', '夷陵', '桂阳', '零陵', '合浦', '辽西', '武威', '酒泉', '朔方', '南阳'];
+const SKILL_DESC = {
+  强袭: '提高部队瞬时战斗爆发，行动阶段可用，军团士气+0.2。',
+  坚守: '强化守备，准备阶段可用，使所在城池城防+1。',
+  激励: '鼓舞士兵，行动阶段可用，军团士气+0.2。',
+  火计: '以计乱敌，行动阶段可用，军团士气+0.2。',
+  统御: '整肃军伍，行动阶段可用，军团士气+0.2。',
+  奇谋: '奇策调度，行动阶段可用，军团士气+0.2。',
+  筑垒: '修筑工事，准备阶段可用，使所在城池城防+1。',
+  疾驰: '加速行军，行动阶段可用，军团士气+0.2。',
+  洞察: '观察敌情，准备阶段可用，使所在城池城防+1。',
+  号令: '统一号令，行动阶段可用，军团士气+0.2。'
+};
 
 const game = {
   map: [],
@@ -57,6 +69,11 @@ function bindUI() {
   ui.map = document.getElementById('map');
   ui.cityRoster = document.getElementById('cityRoster');
   ui.armyRoster = document.getElementById('armyRoster');
+  ui.leftCityInfo = document.getElementById('leftCityInfo');
+  ui.leftArmyDetail = document.getElementById('leftArmyDetail');
+  ui.centerRosterPanel = document.getElementById('centerRosterPanel');
+  ui.overlayTitle = document.getElementById('overlayTitle');
+  ui.overlayBody = document.getElementById('overlayBody');
   ui.scenarioSelect = document.getElementById('scenarioSelect');
   ui.slotPicker = document.getElementById('slotPicker');
 
@@ -77,6 +94,9 @@ function bindUI() {
   document.getElementById('dispatchBtn').onclick = dispatchFromRoster;
   document.getElementById('castArmySkillBtn').onclick = castArmySkill;
   document.getElementById('endActionBtn').onclick = endFactionTurn;
+  document.getElementById('openCityCharactersBtn').onclick = openCityCharacterDirectory;
+  document.getElementById('openWildCharactersBtn').onclick = openWildArmyDirectory;
+  document.getElementById('closeOverlayBtn').onclick = () => ui.centerRosterPanel.classList.add('hidden');
 
   document.getElementById('saveBtn').onclick = () => saveGame(game.selectedSlot);
   document.getElementById('loadBtn').onclick = () => loadGame(game.selectedSlot);
@@ -152,25 +172,23 @@ function startScenario() {
 
 function buildMap() {
   const map = [];
+  const terrainPool = ['plain', 'plain', 'plain', 'plain', 'forest', 'forest', 'mountain', 'river'];
   for (let y = 0; y < MAP_H; y++) {
     const row = [];
     for (let x = 0; x < MAP_W; x++) {
-      let terrain = 'plain';
-
-      if (x < 7 && y > 5) terrain = 'mountain';
-      if (x < 5 && y > 14) terrain = 'mountain';
-      if (y < 5 && x > 29) terrain = 'forest';
-      if (x > 28 && y > 11 && y < 19) terrain = 'forest';
-
-      if ((x > 16 && x < 19) || (x > 20 && x < 22 && y > 5)) terrain = 'river';
-      if (y > 13 && y < 16 && x > 7 && x < 27) terrain = 'river';
-
-      if (x >= 37 || (x >= 34 && y > 19)) terrain = 'sea';
-      if ((x > 31 && x < 36 && y > 18) || (x > 34 && y > 14 && y < 19)) terrain = 'sea';
+      let terrain = terrainPool[Math.floor(Math.random() * terrainPool.length)];
+      if (Math.random() < 0.24 && x > MAP_W - 8) terrain = 'sea';
+      if (Math.random() < 0.12 && x > MAP_W - 5) terrain = 'sea';
 
       row.push({ x, y, terrain, cityId: null });
     }
     map.push(row);
+  }
+  for (let y = 0; y < MAP_H; y++) {
+    for (let x = 0; x < MAP_W; x++) {
+      if (x === 0 || y === 0 || x === MAP_W - 1 || y === MAP_H - 1) map[y][x].terrain = 'plain';
+      if (x >= MAP_W - 2 && Math.random() < 0.5) map[y][x].terrain = 'sea';
+    }
   }
   game.map = map;
 }
@@ -272,6 +290,7 @@ function setupCitiesAndArmies() {
       y: cap.y,
       troops: 7000,
       unit: ['infantry', 'cavalry', 'archer'][idx % 3],
+      compositionRatio: randomTroopRatio(),
       morale: 1,
       acted: false,
       lockedAfterSiege: false,
@@ -279,6 +298,19 @@ function setupCitiesAndArmies() {
       skillUsedThisTurn: false
     };
   });
+}
+function randomTroopRatio() {
+  const a = 20 + Math.floor(Math.random() * 41);
+  const b = 15 + Math.floor(Math.random() * 36);
+  const c = 15 + Math.floor(Math.random() * 36);
+  const d = 10 + Math.floor(Math.random() * 31);
+  const total = a + b + c + d;
+  return {
+    infantry: a / total,
+    cavalry: b / total,
+    archer: c / total,
+    catapult: d / total
+  };
 }
 
 function recalcOrders() {
@@ -342,11 +374,35 @@ function updateSelectionInfo() {
   ui.cityInfo.innerHTML = city
     ? `${city.name} (${getFaction(city.owner).name})<br>开发:${city.development} 防御:${city.defense}<br>驻军:${city.garrison}${city.isCapital ? '<br><b>首都</b>' : ''}`
     : '无城池';
+  ui.leftCityInfo.innerHTML = city
+    ? `<b>${city.name}</b><br>城内士兵：${city.garrison}<br>开发度：${city.development}<br>城防建设度：${city.defense}`
+    : '请点击地图中的城池';
   ui.armyInfo.innerHTML = army
     ? `${getFaction(army.faction).name}军<br>兵种:${UNIT_TYPES[army.unit].name}<br>兵力:${army.troops}<br>行动力:${armyMovePoints(army)}`
     : '无军团';
+  ui.leftArmyDetail.innerHTML = army
+    ? renderArmyTroopLines(army)
+    : '请点击地图中的军团';
   renderCityRoster(city);
   renderArmyRoster(army);
+}
+function renderArmyTroopLines(army) {
+  const comp = getArmyComposition(army);
+  return [
+    `<b>${getFaction(army.faction).name}军兵种明细</b>`,
+    `步兵：${comp.infantry}`,
+    `骑兵：${comp.cavalry}`,
+    `弓兵：${comp.archer}`,
+    `投石车：${comp.catapult}`
+  ].join('<br>');
+}
+function getArmyComposition(army) {
+  const ratio = army.compositionRatio || { infantry: 0.4, cavalry: 0.25, archer: 0.2, catapult: 0.15 };
+  const infantry = Math.floor(army.troops * ratio.infantry);
+  const cavalry = Math.floor(army.troops * ratio.cavalry);
+  const archer = Math.floor(army.troops * ratio.archer);
+  const catapult = Math.max(0, army.troops - infantry - cavalry - archer);
+  return { infantry, cavalry, archer, catapult };
 }
 
 function renderCityRoster(city) {
@@ -401,6 +457,65 @@ function collectIncome() {
   });
   faction.money += income;
   appendLog(`${faction.name} 收入 +${income} 钱。`);
+  updatePanels();
+}
+
+function openCityCharacterDirectory() {
+  const city = getSelectedCityOwned();
+  if (!city) return;
+  const sorted = sortedCharacters(city.characters);
+  openCharacterOverlay(`${city.name} 人物目录`, sorted, { source: 'city', cityId: city.id });
+}
+
+function openWildArmyDirectory() {
+  const city = getSelectedCityOwned();
+  if (!city) return;
+  const sorted = sortedCharacters(city.characters);
+  openCharacterOverlay(`${city.name} 在野军团目录`, sorted, { source: 'wild', cityId: city.id });
+}
+
+function sortedCharacters(chars) {
+  return [...chars].sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN-u-co-pinyin'));
+}
+
+function openCharacterOverlay(title, characters, context) {
+  ui.overlayTitle.textContent = title;
+  ui.overlayBody.innerHTML = characters.map((g, idx) => {
+    const canCast = canCastSkillFromContext(context);
+    return `
+      <tr>
+        <td>${g.name}</td>
+        <td>${g.lead}</td>
+        <td>${g.power}</td>
+        <td>${g.politics}</td>
+        <td><button class="small-btn skill-link" data-skilldetail="${idx}">${g.skill}</button></td>
+        <td>${canCast ? `<button class="small-btn" data-castrow="${idx}">发动</button>` : '<span class="small-text">当前不可用</span>'}</td>
+      </tr>
+    `;
+  }).join('');
+  ui.centerRosterPanel.classList.remove('hidden');
+  const sorted = [...characters];
+  ui.overlayBody.querySelectorAll('[data-skilldetail]').forEach((btn) => {
+    btn.onclick = () => {
+      const g = sorted[Number(btn.dataset.skilldetail)];
+      appendLog(`技能详情【${g.skill}】：${SKILL_DESC[g.skill] || '暂无详细说明。'}`);
+    };
+  });
+  ui.overlayBody.querySelectorAll('[data-castrow]').forEach((btn) => {
+    btn.onclick = () => castSkillFromOverlay(sorted[Number(btn.dataset.castrow)], context);
+  });
+}
+
+function canCastSkillFromContext(context) {
+  return (context.source === 'city' || context.source === 'wild') && game.phase === 'prep';
+}
+
+function castSkillFromOverlay(general, context) {
+  if (!canCastSkillFromContext(context)) return appendLog('当前阶段不可从该目录发动技能。');
+  const city = game.cities.find(c => c.id === context.cityId);
+  if (!city) return appendLog('城池信息已失效。');
+  city.defense += 1;
+  appendLog(`${city.name} 的 ${general.name} 发动【${general.skill}】，城防+1。`);
   updatePanels();
 }
 

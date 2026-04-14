@@ -90,6 +90,48 @@ button:hover { background: #3d5680; }
   overflow: auto;
   font-size: 13px;
 }
+.overlay {
+  position: sticky;
+  top: 12px;
+  margin-top: 8px;
+  z-index: 10;
+}
+.overlay.hidden { display: none; }
+.overlay-card {
+  background: #0f1b2a;
+  border: 1px solid #456188;
+  border-radius: 8px;
+  padding: 8px;
+  max-height: 72vh;
+  overflow: auto;
+}
+.overlay-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+#overlayTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+#overlayTable th,
+#overlayTable td {
+  border: 1px solid #35516f;
+  padding: 5px;
+  text-align: center;
+}
+.skill-link {
+  color: #ffd98e;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.small-text {
+  opacity: 0.85;
+  font-size: 12px;
+}
 .save-slots {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
