@@ -1,27 +1,38 @@
-const MAP_W = 30;
-const MAP_H = 18;
+const MAP_W = 42;
+const MAP_H = 24;
 const MAX_ROUNDS = 15;
+const CITY_SIZE = 2;
+const CITY_MIN_GAP = 5;
+const SLOT_COUNT = 20;
 
-const TERRAIN_COST = { plain: 1, mountain: 2, forest: 2, river: 3, city: 1 };
+const TERRAIN_COST = { plain: 1, mountain: 2, forest: 2, river: 3, sea: 99, city: 1 };
 const UNIT_TYPES = {
-  infantry: { name: '步兵', speed: 4, coef: { plain: 1, mountain: 0.9, forest: 1, river: 0.4, siege: 1.3 } },
-  cavalry: { name: '骑兵', speed: 7, coef: { plain: 1.8, mountain: 0.7, forest: 1, river: 0.2, siege: 1 } },
-  archer: { name: '弓兵', speed: 4, ranged: true, coef: { plain: 0.5, mountain: 0.7, forest: 0.5, river: 0.5, siege: 1.5 } },
-  catapult: { name: '投石车', speed: 2, ranged: true, coef: { plain: 0.8, mountain: 0.6, forest: 0.3, river: 0.6, siege: 3 } }
+  infantry: { name: '步兵', speed: 4, coef: { plain: 1, mountain: 0.9, forest: 1, river: 0.4, sea: 0.1, siege: 1.3 } },
+  cavalry: { name: '骑兵', speed: 7, coef: { plain: 1.8, mountain: 0.7, forest: 1, river: 0.2, sea: 0.1, siege: 1 } },
+  archer: { name: '弓兵', speed: 4, ranged: true, coef: { plain: 0.5, mountain: 0.7, forest: 0.5, river: 0.5, sea: 0.1, siege: 1.5 } },
+  catapult: { name: '投石车', speed: 2, ranged: true, coef: { plain: 0.8, mountain: 0.6, forest: 0.3, river: 0.6, sea: 0.1, siege: 3 } }
 };
+
+const NAME_POOL = ['赵云', '关羽', '张飞', '黄忠', '马超', '曹仁', '夏侯惇', '典韦', '周瑜', '陆逊', '甘宁', '太史慈', '吕蒙', '张辽', '徐晃', '许褚', '文丑', '颜良', '庞德', '姜维', '邓艾', '钟会', '凌统', '徐盛', '陈到', '王平', '文聘', '朱桓', '高顺', '华雄'];
+const SKILL_POOL = ['强袭', '坚守', '激励', '火计', '统御', '奇谋', '筑垒', '疾驰', '洞察', '号令'];
+const EQUIP_POOL = ['铁甲', '长枪', '良弓', '战马', '军旗', '皮甲', '重盾', '兵书', '宝刀', '投石器'];
+const CITY_NAME_POOL = ['长安', '洛阳', '邺城', '许昌', '晋阳', '北平', '襄平', '成都', '汉中', '江州', '云南', '永安', '武都', '梓潼', '建业', '柴桑', '会稽', '庐江', '寿春', '长沙', '交州', '南海', '青州', '徐州', '兖州', '冀州', '凉州', '荆州', '扬州', '益州', '雍州', '幽州', '并州', '汝南', '陈留', '濮阳', '弘农', '上庸', '夷陵', '桂阳', '零陵', '合浦', '辽西', '武威', '酒泉', '朔方', '南阳'];
 
 const game = {
   map: [],
   cities: [],
   factions: [],
   armies: [],
+  scenarios: [],
+  scenarioIndex: 0,
   round: 1,
   phase: 'prep',
   prepOrder: [],
   actionOrder: [],
   currentFactionIndex: 0,
   selected: null,
-  winner: null
+  winner: null,
+  selectedSlot: 1
 };
 
 const ui = {};
@@ -29,6 +40,9 @@ const ui = {};
 function init() {
   bindUI();
   createSaveSlots();
+  generateScenarios();
+  populateScenarioSelect();
+  populateSlotPicker();
 }
 
 function bindUI() {
@@ -41,37 +55,99 @@ function bindUI() {
   ui.armyInfo = document.getElementById('armyInfo');
   ui.status = document.getElementById('statusLog');
   ui.map = document.getElementById('map');
+  ui.cityRoster = document.getElementById('cityRoster');
+  ui.armyRoster = document.getElementById('armyRoster');
+  ui.scenarioSelect = document.getElementById('scenarioSelect');
+  ui.slotPicker = document.getElementById('slotPicker');
 
   document.getElementById('newGameBtn').onclick = startScenario;
-  document.getElementById('loadMenuBtn').onclick = () => appendLog('请使用右上角读档功能。');
+  document.getElementById('loadMenuBtn').onclick = () => loadGame(game.selectedSlot);
   document.getElementById('exitBtn').onclick = () => appendLog('浏览器原型无法直接退出。');
 
   document.getElementById('incomeBtn').onclick = collectIncome;
   document.getElementById('recruitBtn').onclick = recruitAtSelectedCity;
+  document.getElementById('shopBtn').onclick = openShop;
+  document.getElementById('hireBtn').onclick = hireGeneral;
+  document.getElementById('castCitySkillBtn').onclick = castCitySkill;
+
   document.getElementById('endPrepBtn').onclick = endFactionTurn;
   document.getElementById('moveBtn').onclick = moveArmy;
   document.getElementById('attackBtn').onclick = fieldBattle;
   document.getElementById('siegeBtn').onclick = siegeBattle;
+  document.getElementById('dispatchBtn').onclick = dispatchFromRoster;
+  document.getElementById('castArmySkillBtn').onclick = castArmySkill;
   document.getElementById('endActionBtn').onclick = endFactionTurn;
 
-  document.getElementById('saveBtn').onclick = () => saveGame(1);
-  document.getElementById('loadBtn').onclick = () => loadGame(1);
+  document.getElementById('saveBtn').onclick = () => saveGame(game.selectedSlot);
+  document.getElementById('loadBtn').onclick = () => loadGame(game.selectedSlot);
+
+  ui.scenarioSelect.onchange = () => {
+    game.scenarioIndex = Number(ui.scenarioSelect.value);
+  };
+  ui.slotPicker.onchange = () => {
+    game.selectedSlot = Number(ui.slotPicker.value);
+  };
+}
+
+function populateSlotPicker() {
+  ui.slotPicker.innerHTML = '';
+  for (let i = 1; i <= SLOT_COUNT; i++) {
+    const option = document.createElement('option');
+    option.value = String(i);
+    option.textContent = `${i}`;
+    ui.slotPicker.appendChild(option);
+  }
+  ui.slotPicker.value = String(game.selectedSlot);
+}
+
+function generateScenarios() {
+  const factionTemplates = [
+    ['魏', 'red'], ['蜀', 'green'], ['吴', 'blue'], ['汉', 'yellow'], ['燕', 'blue'], ['楚', 'green'], ['秦', 'red'], ['赵', 'yellow']
+  ];
+  game.scenarios = [];
+  for (let i = 1; i <= 10; i++) {
+    const pool = [...factionTemplates].sort(() => Math.random() - 0.5);
+    const factions = pool.slice(0, 3).map((it, idx) => ({
+      id: `f${idx}`,
+      name: it[0],
+      color: it[1],
+      money: 12000,
+      capitals: [],
+      generalCount: 6,
+      alive: true,
+      skill: SKILL_POOL[Math.floor(Math.random() * SKILL_POOL.length)]
+    }));
+    game.scenarios.push({ name: `剧本${i}：群雄${Math.floor(100 + Math.random() * 900)}`, factions });
+  }
+}
+
+function populateScenarioSelect() {
+  ui.scenarioSelect.innerHTML = '';
+  game.scenarios.forEach((sc, idx) => {
+    const option = document.createElement('option');
+    option.value = String(idx);
+    option.textContent = sc.name;
+    ui.scenarioSelect.appendChild(option);
+  });
 }
 
 function startScenario() {
+  const scenario = game.scenarios[game.scenarioIndex];
   buildMap();
-  setupFactions();
+  setupFactions(scenario);
   setupCitiesAndArmies();
   game.round = 1;
   game.phase = 'prep';
   recalcOrders();
   game.currentFactionIndex = 0;
   game.winner = null;
+  game.selected = null;
+  ui.status.innerHTML = '';
   ui.menu.classList.remove('active');
   ui.game.classList.add('active');
   renderMap();
   updatePanels();
-  appendLog('剧本开始：三国争衡。准备阶段开始。');
+  appendLog(`剧本开始：${scenario.name}。准备阶段开始。`);
 }
 
 function buildMap() {
@@ -80,10 +156,18 @@ function buildMap() {
     const row = [];
     for (let x = 0; x < MAP_W; x++) {
       let terrain = 'plain';
-      if (y < 3 && x > 20) terrain = 'forest';
-      if (y > 11 && x < 8) terrain = 'mountain';
-      if (x > 12 && x < 16) terrain = 'river';
-      if (y > 8 && y < 12 && x > 22) terrain = 'forest';
+
+      if (x < 7 && y > 5) terrain = 'mountain';
+      if (x < 5 && y > 14) terrain = 'mountain';
+      if (y < 5 && x > 29) terrain = 'forest';
+      if (x > 28 && y > 11 && y < 19) terrain = 'forest';
+
+      if ((x > 16 && x < 19) || (x > 20 && x < 22 && y > 5)) terrain = 'river';
+      if (y > 13 && y < 16 && x > 7 && x < 27) terrain = 'river';
+
+      if (x >= 37 || (x >= 34 && y > 19)) terrain = 'sea';
+      if ((x > 31 && x < 36 && y > 18) || (x > 34 && y > 14 && y < 19)) terrain = 'sea';
+
       row.push({ x, y, terrain, cityId: null });
     }
     map.push(row);
@@ -91,37 +175,85 @@ function buildMap() {
   game.map = map;
 }
 
-function setupFactions() {
-  game.factions = [
-    { id: 'wei', name: '魏', color: 'red', money: 12000, capitals: ['洛阳'], generalCount: 6, alive: true },
-    { id: 'shu', name: '蜀', color: 'green', money: 12000, capitals: ['成都'], generalCount: 6, alive: true },
-    { id: 'wu', name: '吴', color: 'blue', money: 12000, capitals: ['建业'], generalCount: 6, alive: true }
-  ];
+function setupFactions(scenario) {
+  game.factions = scenario.factions.map((f) => ({ ...f, capitals: [] }));
+}
+
+function distanceOk(x, y, placed) {
+  for (const p of placed) {
+    const dx = Math.abs(x - p.x);
+    const dy = Math.abs(y - p.y);
+    if (Math.max(dx, dy) < CITY_MIN_GAP) return false;
+  }
+  return true;
+}
+
+function randomGeneral() {
+  const name = NAME_POOL[Math.floor(Math.random() * NAME_POOL.length)] + Math.floor(1 + Math.random() * 99);
+  return {
+    name,
+    lead: 60 + Math.floor(Math.random() * 35),
+    power: 55 + Math.floor(Math.random() * 40),
+    politics: 45 + Math.floor(Math.random() * 45),
+    speed: 3 + Math.floor(Math.random() * 5),
+    skill: SKILL_POOL[Math.floor(Math.random() * SKILL_POOL.length)],
+    passiveSkill: SKILL_POOL[Math.floor(Math.random() * SKILL_POOL.length)],
+    equipment: []
+  };
+}
+
+function randomShopItems() {
+  return [...EQUIP_POOL].sort(() => Math.random() - 0.5).slice(0, 4).map((name) => ({
+    name,
+    price: 500 + Math.floor(Math.random() * 3500),
+    bonus: 1 + Math.floor(Math.random() * 4)
+  }));
 }
 
 function setupCitiesAndArmies() {
-  const defs = [
-    ['长安', 8, 6, 'wei', true], ['洛阳', 13, 6, 'wei', true], ['邺城', 16, 3, 'wei', false], ['许昌', 15, 7, 'wei', false],
-    ['晋阳', 10, 3, 'wei', false], ['北平', 20, 2, 'wei', false], ['襄平', 24, 1, 'wei', false],
-    ['成都', 5, 11, 'shu', true], ['汉中', 8, 9, 'shu', false], ['江州', 8, 12, 'shu', false], ['云南', 3, 14, 'shu', false],
-    ['永安', 10, 11, 'shu', false], ['武都', 7, 8, 'shu', false], ['梓潼', 6, 10, 'shu', false],
-    ['建业', 21, 10, 'wu', true], ['柴桑', 18, 10, 'wu', false], ['会稽', 23, 13, 'wu', false], ['庐江', 17, 8, 'wu', false],
-    ['寿春', 18, 6, 'wu', false], ['长沙', 16, 12, 'wu', false], ['交州', 19, 15, 'wu', false], ['南海', 22, 15, 'wu', false]
-  ];
+  const placed = [];
+  const candidates = [];
+  for (let y = 1; y < MAP_H - 2; y++) {
+    for (let x = 1; x < MAP_W - 2; x++) {
+      const tile = game.map[y][x];
+      if (tile.terrain === 'sea' || tile.terrain === 'river' || tile.terrain === 'mountain') continue;
+      if (game.map[y][x + 1].terrain === 'sea' || game.map[y + 1][x].terrain === 'sea' || game.map[y + 1][x + 1].terrain === 'sea') continue;
+      candidates.push({ x, y });
+    }
+  }
+  candidates.sort(() => Math.random() - 0.5);
 
-  game.cities = defs.map((d, i) => ({
-    id: i,
-    name: d[0], x: d[1], y: d[2], owner: d[3], isCapital: d[4],
-    development: d[4] ? 8 : 5,
-    defense: d[4] ? 6 : 4,
-    governorPolitics: 65 + Math.floor(Math.random() * 30),
-    garrison: d[4] ? 8000 : 4500,
-    besieged: false
-  }));
+  const cityTotal = 33;
+  for (const c of candidates) {
+    if (placed.length >= cityTotal) break;
+    if (!distanceOk(c.x, c.y, placed)) continue;
+    placed.push(c);
+  }
+
+  game.cities = placed.map((p, idx) => {
+    const f = game.factions[idx % game.factions.length];
+    const isCapital = idx < game.factions.length;
+    if (isCapital) f.capitals = [CITY_NAME_POOL[idx]];
+    return {
+      id: idx,
+      name: CITY_NAME_POOL[idx % CITY_NAME_POOL.length],
+      x: p.x,
+      y: p.y,
+      owner: f.id,
+      isCapital,
+      development: isCapital ? 8 : 5,
+      defense: isCapital ? 6 : 4,
+      governorPolitics: 65 + Math.floor(Math.random() * 30),
+      garrison: isCapital ? 9000 : 4600,
+      besieged: false,
+      characters: [randomGeneral(), randomGeneral()],
+      shopItems: randomShopItems()
+    };
+  });
 
   for (const city of game.cities) {
-    for (let yy = city.y; yy < city.y + 2; yy++) {
-      for (let xx = city.x; xx < city.x + 2; xx++) {
+    for (let yy = city.y; yy < city.y + CITY_SIZE; yy++) {
+      for (let xx = city.x; xx < city.x + CITY_SIZE; xx++) {
         if (game.map[yy]?.[xx]) {
           game.map[yy][xx].terrain = 'city';
           game.map[yy][xx].cityId = city.id;
@@ -132,17 +264,19 @@ function setupCitiesAndArmies() {
 
   game.armies = game.factions.map((f, idx) => {
     const cap = game.cities.find(c => c.owner === f.id && c.isCapital);
+    const team = [randomGeneral(), randomGeneral(), randomGeneral()];
     return {
       id: `army_${f.id}`,
       faction: f.id,
       x: cap.x,
       y: cap.y,
       troops: 7000,
-      unit: idx === 0 ? 'infantry' : (idx === 1 ? 'cavalry' : 'archer'),
+      unit: ['infantry', 'cavalry', 'archer'][idx % 3],
       morale: 1,
       acted: false,
       lockedAfterSiege: false,
-      generals: [{ name: `${f.name}主将`, lead: 78 + idx * 3, power: 80 + idx * 2, politics: 70, speed: 4 + idx }]
+      generals: team,
+      skillUsedThisTurn: false
     };
   });
 }
@@ -166,13 +300,16 @@ function currentFactionId() {
 
 function updatePanels() {
   const cf = game.factions.find(f => f.id === currentFactionId());
-  ui.turnInfo.innerHTML = `第 <b>${game.round}</b> / ${MAX_ROUNDS} 回合<br>阶段：<b>${game.phase === 'prep' ? '准备' : '行动'}</b>`;
-  ui.factionInfo.innerHTML = `<b>${cf.name}</b><br>金钱：${cf.money}<br>城池：${countCities(cf.id)}<br>总兵：${totalTroops(cf.id)}`;
+  if (!cf) return;
+  ui.turnInfo.innerHTML = `第 <b>${game.round}</b> / ${MAX_ROUNDS} 回合<br>阶段：<b>${game.phase === 'prep' ? '准备' : '行动'}</b><br>剧本：${game.scenarios[game.scenarioIndex].name}`;
+  ui.factionInfo.innerHTML = `<b>${cf.name}</b><br>金钱：${cf.money}<br>城池：${countCities(cf.id)}<br>总兵：${totalTroops(cf.id)}<br>势力技能：${cf.skill}`;
   updateSelectionInfo();
 }
 
 function renderMap() {
   ui.map.innerHTML = '';
+  ui.map.style.gridTemplateColumns = `repeat(${MAP_W}, 34px)`;
+  ui.map.style.gridTemplateRows = `repeat(${MAP_H}, 34px)`;
   for (let y = 0; y < MAP_H; y++) {
     for (let x = 0; x < MAP_W; x++) {
       const tile = game.map[y][x];
@@ -208,6 +345,47 @@ function updateSelectionInfo() {
   ui.armyInfo.innerHTML = army
     ? `${getFaction(army.faction).name}军<br>兵种:${UNIT_TYPES[army.unit].name}<br>兵力:${army.troops}<br>行动力:${armyMovePoints(army)}`
     : '无军团';
+  renderCityRoster(city);
+  renderArmyRoster(army);
+}
+
+function renderCityRoster(city) {
+  if (!city) {
+    ui.cityRoster.innerHTML = '无人物名录';
+    return;
+  }
+  ui.cityRoster.innerHTML = city.characters.map((g, idx) => `
+    <div class="roster-item">
+      <b>${g.name}</b> 统:${g.lead} 武:${g.power} 政:${g.politics}<br>
+      主动:${g.skill} / 被动:${g.passiveSkill}<br>
+      装备:${g.equipment.length ? g.equipment.map(e => e.name).join('、') : '无'}<br>
+      <button class="small-btn" data-equip="${idx}">配装</button>
+      <button class="small-btn" data-skill="${idx}">发动技能</button>
+    </div>
+  `).join('');
+  ui.cityRoster.querySelectorAll('[data-equip]').forEach(btn => {
+    btn.onclick = () => equipCharacter(city, Number(btn.dataset.equip));
+  });
+  ui.cityRoster.querySelectorAll('[data-skill]').forEach(btn => {
+    btn.onclick = () => triggerCharacterSkillInCity(city, Number(btn.dataset.skill));
+  });
+}
+
+function renderArmyRoster(army) {
+  if (!army) {
+    ui.armyRoster.innerHTML = '无行动军团名录';
+    return;
+  }
+  ui.armyRoster.innerHTML = army.generals.map((g, idx) => `
+    <div class="roster-item">
+      <b>${g.name}</b> 统:${g.lead} 武:${g.power}<br>
+      技能:${g.skill}<br>
+      <button class="small-btn" data-armyskill="${idx}">发动技能</button>
+    </div>
+  `).join('');
+  ui.armyRoster.querySelectorAll('[data-armyskill]').forEach(btn => {
+    btn.onclick = () => triggerCharacterSkillInArmy(army, Number(btn.dataset.armyskill));
+  });
 }
 
 function collectIncome() {
@@ -221,8 +399,6 @@ function collectIncome() {
     if (c.governorPolitics > 80) cityIncome = Math.floor(cityIncome * 1.2);
     income += cityIncome;
   });
-  const capitalOwned = game.cities.some(c => c.owner === fid && c.isCapital);
-  if (!capitalOwned) income = Math.floor(income * 0.8);
   faction.money += income;
   appendLog(`${faction.name} 收入 +${income} 钱。`);
   updatePanels();
@@ -230,13 +406,9 @@ function collectIncome() {
 
 function recruitAtSelectedCity() {
   if (game.phase !== 'prep') return appendLog('当前不是准备阶段。');
-  if (!game.selected) return appendLog('请先选中己方城池。');
-  const tile = game.map[game.selected.y][game.selected.x];
-  if (tile.cityId == null) return appendLog('该地块没有城池。');
-  const city = game.cities[tile.cityId];
-  const fid = currentFactionId();
-  if (city.owner !== fid) return appendLog('只能在己方城池征兵。');
-  const faction = getFaction(fid);
+  const city = getSelectedCityOwned();
+  if (!city) return;
+  const faction = getFaction(currentFactionId());
   const cost = 500;
   if (faction.money < cost) return appendLog('金钱不足。');
   const cap = city.development * 1000;
@@ -245,7 +417,113 @@ function recruitAtSelectedCity() {
   faction.money -= cost;
   appendLog(`${city.name} 征兵 +1000，花费 ${cost} 钱。`);
   updatePanels();
-  renderMap();
+}
+
+function openShop() {
+  if (game.phase !== 'prep') return appendLog('商店仅准备阶段开放。');
+  const city = getSelectedCityOwned();
+  if (!city) return;
+  const faction = getFaction(currentFactionId());
+  const pick = city.shopItems[Math.floor(Math.random() * city.shopItems.length)];
+  if (!pick) return appendLog('商店暂无货物。');
+  if (faction.money < pick.price) return appendLog(`购买 ${pick.name} 需要 ${pick.price} 钱。`);
+  if (!city.characters.length) return appendLog('该城无人可配装。');
+  faction.money -= pick.price;
+  city.characters[0].equipment.push(pick);
+  appendLog(`${city.name} 商店购买 ${pick.name}，花费 ${pick.price}，已给 ${city.characters[0].name}。`);
+  updatePanels();
+}
+
+function hireGeneral() {
+  if (game.phase !== 'prep') return appendLog('招揽仅准备阶段可用。');
+  const city = getSelectedCityOwned();
+  if (!city) return;
+  const faction = getFaction(currentFactionId());
+  if (faction.money < 4000) return appendLog('金钱不足 4000，无法招揽。');
+  faction.money -= 4000;
+  const g = randomGeneral();
+  city.characters.push(g);
+  appendLog(`${city.name} 招揽成功：${g.name}（花费4000）。`);
+  updatePanels();
+}
+
+function equipCharacter(city, index) {
+  if (game.phase !== 'prep') return appendLog('仅准备阶段可配装。');
+  const g = city.characters[index];
+  if (!g) return;
+  const item = city.shopItems[Math.floor(Math.random() * city.shopItems.length)];
+  if (!item) return;
+  g.equipment.push(item);
+  appendLog(`${g.name} 配置装备：${item.name}。`);
+  updateSelectionInfo();
+}
+
+function castCitySkill() {
+  if (game.phase !== 'prep') return appendLog('当前不是准备阶段。');
+  const city = getSelectedCityOwned();
+  if (!city || !city.characters.length) return appendLog('该城无可发动技能武将。');
+  triggerCharacterSkillInCity(city, 0);
+}
+
+function triggerCharacterSkillInCity(city, idx) {
+  if (game.phase !== 'prep') return appendLog('当前不是准备阶段。');
+  const g = city.characters[idx];
+  if (!g) return;
+  city.defense += 1;
+  appendLog(`${city.name} 的 ${g.name} 发动【${g.skill}】，城防+1。`);
+  updatePanels();
+}
+
+function dispatchFromRoster() {
+  if (game.phase !== 'action') return appendLog('派出军团仅行动阶段可用。');
+  const city = getSelectedCityOwned();
+  if (!city || city.garrison < 1500) return appendLog('该城驻军不足1500。');
+  const army = game.armies.find(a => a.faction === currentFactionId());
+  if (!army) return appendLog('当前势力没有军团。');
+  const send = Math.min(2500, city.garrison - 1000);
+  city.garrison -= send;
+  army.troops += send;
+  army.x = city.x;
+  army.y = city.y;
+  appendLog(`${city.name} 派出 ${send} 兵补充军团。`);
+  updatePanels();
+}
+
+function castArmySkill() {
+  if (game.phase !== 'action') return appendLog('当前不是行动阶段。');
+  const army = game.armies.find(a => a.faction === currentFactionId());
+  if (!army) return appendLog('当前势力无军团。');
+  triggerCharacterSkillInArmy(army, 0);
+}
+
+function triggerCharacterSkillInArmy(army, idx) {
+  if (game.phase !== 'action') return appendLog('当前不是行动阶段。');
+  if (army.skillUsedThisTurn) return appendLog('本军团本回合已发动过技能。');
+  const g = army.generals[idx];
+  if (!g) return;
+  army.morale = Math.min(1.5, army.morale + 0.2);
+  army.skillUsedThisTurn = true;
+  appendLog(`${getFaction(army.faction).name}军 ${g.name} 发动【${g.skill}】，士气上升。`);
+  updatePanels();
+}
+
+function getSelectedCityOwned() {
+  if (!game.selected) {
+    appendLog('请先选中己方城池。');
+    return null;
+  }
+  const tile = game.map[game.selected.y][game.selected.x];
+  if (tile.cityId == null) {
+    appendLog('该地块没有城池。');
+    return null;
+  }
+  const city = game.cities[tile.cityId];
+  const fid = currentFactionId();
+  if (city.owner !== fid) {
+    appendLog('只能操作己方城池。');
+    return null;
+  }
+  return city;
 }
 
 function moveArmy() {
@@ -255,8 +533,9 @@ function moveArmy() {
   if (!army) return appendLog('当前势力无可用军团。');
   if (!game.selected) return appendLog('请先点击目标地块。');
   if (army.lockedAfterSiege) return appendLog('此军团本回合攻城后已无法再主动移动。');
-  const dist = Math.abs(game.selected.x - army.x) + Math.abs(game.selected.y - army.y);
   const targetTile = game.map[game.selected.y][game.selected.x];
+  if (targetTile.terrain === 'sea') return appendLog('当前原型不支持入海移动。');
+  const dist = Math.abs(game.selected.x - army.x) + Math.abs(game.selected.y - army.y);
   const cost = dist * (TERRAIN_COST[targetTile.terrain] || 1);
   const points = armyMovePoints(army);
   if (cost > points) return appendLog(`行动力不足。需要${cost}，可用${points}。`);
@@ -280,7 +559,7 @@ function fieldBattle() {
   const atkPower = calcFieldPower(atk, terrain);
   const defPower = calcFieldPower(target, terrain);
 
-  resolveBattleResult(atk, target, atkPower, defPower, false);
+  resolveBattleResult(atk, target, atkPower, defPower);
 }
 
 function siegeBattle() {
@@ -309,7 +588,7 @@ function siegeBattle() {
     knockoutIfNoCities(oldOwner);
   } else {
     atk.troops = Math.max(1000, Math.floor(atk.troops * 0.8));
-    retreat( atk, 1);
+    retreat(atk, 1);
     appendLog(`${city.name} 守城成功，攻城军后退1格且本回合不能再次攻城。`);
     atk.lockedAfterSiege = true;
   }
@@ -365,13 +644,14 @@ function retreat(army, steps) {
 
 function endFactionTurn() {
   if (game.winner) return;
+  triggerPassiveSkills();
   game.currentFactionIndex++;
   const order = game.phase === 'prep' ? game.prepOrder : game.actionOrder;
   if (game.currentFactionIndex >= order.length) {
     if (game.phase === 'prep') {
       game.phase = 'action';
       game.currentFactionIndex = 0;
-      game.armies.forEach(a => { a.acted = false; a.lockedAfterSiege = false; a.morale = 1; });
+      game.armies.forEach(a => { a.acted = false; a.lockedAfterSiege = false; a.morale = 1; a.skillUsedThisTurn = false; });
       appendLog('所有势力准备阶段完成，进入行动阶段。');
     } else {
       game.round++;
@@ -387,6 +667,16 @@ function endFactionTurn() {
   }
   checkVictory();
   updatePanels();
+}
+
+function triggerPassiveSkills() {
+  const fid = currentFactionId();
+  const cities = game.cities.filter(c => c.owner === fid);
+  for (const c of cities) {
+    for (const g of c.characters) {
+      if (g.passiveSkill === '洞察') c.development = Math.min(12, c.development + 1);
+    }
+  }
 }
 
 function checkVictory() {
@@ -428,13 +718,20 @@ function knockoutIfNoCities(fid) {
 
 function createSaveSlots() {
   const container = document.getElementById('saveSlots');
-  for (let i = 1; i <= 20; i++) {
+  container.innerHTML = '';
+  for (let i = 1; i <= SLOT_COUNT; i++) {
     const btn = document.createElement('button');
     btn.className = 'slot-btn';
     btn.textContent = `${i}`;
-    btn.onclick = () => saveGame(i);
+    btn.onclick = () => {
+      game.selectedSlot = i;
+      ui.slotPicker.value = String(i);
+      saveGame(i);
+    };
     btn.oncontextmenu = (e) => {
       e.preventDefault();
+      game.selectedSlot = i;
+      ui.slotPicker.value = String(i);
       loadGame(i);
     };
     container.appendChild(btn);
@@ -452,6 +749,9 @@ function loadGame(slot) {
   if (!raw) return appendLog(`存档位 ${slot} 为空。`);
   const loaded = JSON.parse(raw);
   Object.assign(game, loaded);
+  game.selectedSlot = slot;
+  ui.slotPicker.value = String(slot);
+  ui.scenarioSelect.value = String(game.scenarioIndex || 0);
   ui.menu.classList.remove('active');
   ui.game.classList.add('active');
   renderMap();
@@ -466,11 +766,11 @@ function appendLog(msg) {
 }
 
 function getArmyAt(x, y) {
-  return game.armies.find(a => a.x === x && a.y === y && getFaction(a.faction).alive);
+  return game.armies.find(a => a.x === x && a.y === y && getFaction(a.faction)?.alive);
 }
 function getFaction(fid) { return game.factions.find(f => f.id === fid); }
 function terrainName(t) {
-  return { plain: '平原', mountain: '山地', forest: '森林', river: '河流', city: '城池' }[t] || t;
+  return { plain: '平原', mountain: '山地', forest: '森林', river: '河流', sea: '海洋', city: '城池' }[t] || t;
 }
 function armyMovePoints(army) {
   const base = UNIT_TYPES[army.unit].speed;
