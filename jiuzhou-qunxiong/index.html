@@ -38,6 +38,10 @@
         <div id="turnInfo"></div>
         <h3>当前势力</h3>
         <div id="factionInfo"></div>
+        <h3>当前选中城池（基础）</h3>
+        <div id="leftCityInfo">请点击地图中的城池</div>
+        <h3>当前选中军团兵力构成</h3>
+        <div id="leftArmyDetail">请点击地图中的军团</div>
         <h3>操作</h3>
         <div class="actions">
           <button id="incomeBtn">准备：领取收入</button>
@@ -51,6 +55,8 @@
           <button id="siegeBtn">行动：攻城</button>
           <button id="dispatchBtn">行动：名录派出军团</button>
           <button id="castArmySkillBtn">行动：军团名录发动技能</button>
+          <button id="openCityCharactersBtn">打开人物目录（城池）</button>
+          <button id="openWildCharactersBtn">打开在野军团目录</button>
           <button id="endActionBtn">结束行动</button>
         </div>
         <div class="status" id="statusLog"></div>
@@ -60,6 +66,27 @@
         <div id="mapContainer">
           <div id="map"></div>
         </div>
+        <section id="centerRosterPanel" class="overlay hidden">
+          <div class="overlay-card">
+            <div class="overlay-head">
+              <h3 id="overlayTitle">人物名录</h3>
+              <button id="closeOverlayBtn">关闭</button>
+            </div>
+            <table id="overlayTable">
+              <thead>
+                <tr>
+                  <th>姓名</th>
+                  <th>统帅</th>
+                  <th>武力</th>
+                  <th>政治</th>
+                  <th>技能</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="overlayBody"></tbody>
+            </table>
+          </div>
+        </section>
       </main>
 
       <aside class="panel right-panel">
