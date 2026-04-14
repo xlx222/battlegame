@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>九州群雄 - 原型</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>《九州群雄》Prototype</h1>
+      <div class="top-actions">
+        <button id="saveBtn">存档</button>
+        <button id="loadBtn">读档</button>
+      </div>
+    </header>
+
+    <section id="menuScreen" class="screen active">
+      <h2>主菜单</h2>
+      <div class="menu-buttons">
+        <button id="newGameBtn">选剧本（默认）</button>
+        <button id="loadMenuBtn">读取存档</button>
+        <button id="exitBtn">退出游戏</button>
+      </div>
+      <p class="hint">热座模式：各势力轮流操作，最多15回合。</p>
+    </section>
+
+    <section id="gameScreen" class="screen">
+      <aside class="panel left-panel">
+        <h3>回合信息</h3>
+        <div id="turnInfo"></div>
+        <h3>当前势力</h3>
+        <div id="factionInfo"></div>
+        <h3>操作</h3>
+        <div class="actions">
+          <button id="incomeBtn">准备：领取收入</button>
+          <button id="recruitBtn">准备：征兵(+1000)</button>
+          <button id="endPrepBtn">结束准备</button>
+          <button id="moveBtn">行动：移动</button>
+          <button id="attackBtn">行动：野战</button>
+          <button id="siegeBtn">行动：攻城</button>
+          <button id="endActionBtn">结束行动</button>
+        </div>
+        <div class="status" id="statusLog"></div>
+      </aside>
+
+      <main>
+        <div id="mapContainer">
+          <div id="map"></div>
+        </div>
+      </main>
+
+      <aside class="panel right-panel">
+        <h3>选中地块</h3>
+        <div id="tileInfo">请点击地图地块</div>
+        <h3>城池</h3>
+        <div id="cityInfo"></div>
+        <h3>军团</h3>
+        <div id="armyInfo"></div>
+        <h3>存档位（20）</h3>
+        <div id="saveSlots" class="save-slots"></div>
+      </aside>
+    </section>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
