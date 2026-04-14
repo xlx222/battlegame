@@ -3,7 +3,6 @@
   --panel: #1b2636;
   --accent: #d8a33a;
   --text: #e8edf4;
-  --grid: #2f425e;
 }
 * { box-sizing: border-box; }
 body {
@@ -21,6 +20,9 @@ header {
   border-bottom: 1px solid #2f3e56;
 }
 h1 { margin: 0; font-size: 20px; color: var(--accent); }
+.top-actions { display: flex; gap: 8px; align-items: center; }
+label { font-size: 12px; display: inline-flex; gap: 6px; align-items: center; }
+select,
 button {
   background: #2e405d;
   color: var(--text);
@@ -28,16 +30,16 @@ button {
   border-radius: 6px;
   padding: 6px 10px;
   margin: 4px 0;
-  cursor: pointer;
 }
+button { cursor: pointer; }
 button:hover { background: #3d5680; }
 .screen { display: none; padding: 12px; }
 .screen.active { display: block; }
-.menu-buttons { display: flex; gap: 12px; }
+.menu-buttons { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .hint { opacity: 0.85; }
 #gameScreen {
   display: grid;
-  grid-template-columns: 260px 1fr 300px;
+  grid-template-columns: 280px 1fr 350px;
   gap: 12px;
 }
 .panel {
@@ -45,24 +47,22 @@ button:hover { background: #3d5680; }
   border: 1px solid #314764;
   border-radius: 8px;
   padding: 10px;
-  min-height: 78vh;
+  min-height: 84vh;
 }
 #mapContainer {
   overflow: auto;
   border: 1px solid #314764;
   border-radius: 8px;
-  background: #162234;
-  height: 78vh;
+  background: #122033;
+  height: 84vh;
 }
 #map {
   display: grid;
-  grid-template-columns: repeat(30, 36px);
-  grid-template-rows: repeat(18, 36px);
   width: max-content;
 }
 .tile {
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   border: 1px solid rgba(0, 0, 0, 0.25);
   font-size: 10px;
   display: flex;
@@ -71,20 +71,22 @@ button:hover { background: #3d5680; }
   text-align: center;
   user-select: none;
 }
-.tile.plain { background: #6a8f5a; }
-.tile.mountain { background: #6f6a66; }
-.tile.forest { background: #406647; }
-.tile.river { background: #2d5f8a; }
+.tile.plain { background: #6f9a60; }
+.tile.mountain { background: #6c6662; }
+.tile.forest { background: #3e6642; }
+.tile.river { background: #2f648f; }
+.tile.sea { background: #164a77; }
 .tile.city { outline: 2px solid #ffe6a7; }
 .tile.selected { outline: 3px solid #ffd25c; }
 .city-label { font-size: 8px; line-height: 1.1; }
-.status {
+.status,
+.roster {
   margin-top: 8px;
   padding: 8px;
   background: #111a28;
   border-radius: 6px;
-  min-height: 120px;
-  max-height: 180px;
+  min-height: 80px;
+  max-height: 190px;
   overflow: auto;
   font-size: 13px;
 }
@@ -97,3 +99,12 @@ button:hover { background: #3d5680; }
 .faction-red { box-shadow: inset 0 0 0 2px #ff6767; }
 .faction-blue { box-shadow: inset 0 0 0 2px #65a8ff; }
 .faction-green { box-shadow: inset 0 0 0 2px #6eda8a; }
+.faction-yellow { box-shadow: inset 0 0 0 2px #f2de66; }
+.roster-item {
+  border: 1px solid #39557b;
+  border-radius: 6px;
+  padding: 6px;
+  margin-bottom: 6px;
+}
+.roster-item b { color: #ffd98e; }
+.small-btn { font-size: 11px; padding: 3px 6px; margin-right: 6px; }

@@ -11,6 +11,9 @@
     <header>
       <h1>《九州群雄》Prototype</h1>
       <div class="top-actions">
+        <label>存档位
+          <select id="slotPicker"></select>
+        </label>
         <button id="saveBtn">存档</button>
         <button id="loadBtn">读档</button>
       </div>
@@ -19,11 +22,14 @@
     <section id="menuScreen" class="screen active">
       <h2>主菜单</h2>
       <div class="menu-buttons">
-        <button id="newGameBtn">选剧本（默认）</button>
+        <label>剧本
+          <select id="scenarioSelect"></select>
+        </label>
+        <button id="newGameBtn">开始所选剧本</button>
         <button id="loadMenuBtn">读取存档</button>
         <button id="exitBtn">退出游戏</button>
       </div>
-      <p class="hint">热座模式：各势力轮流操作，最多15回合。</p>
+      <p class="hint">热座模式：准备/行动双阶段，新增商店、招揽、名录和技能入口。</p>
     </section>
 
     <section id="gameScreen" class="screen">
@@ -36,10 +42,15 @@
         <div class="actions">
           <button id="incomeBtn">准备：领取收入</button>
           <button id="recruitBtn">准备：征兵(+1000)</button>
+          <button id="shopBtn">准备：进入商店</button>
+          <button id="hireBtn">准备：招揽武将(-4000)</button>
+          <button id="castCitySkillBtn">准备：名录中发动技能</button>
           <button id="endPrepBtn">结束准备</button>
           <button id="moveBtn">行动：移动</button>
           <button id="attackBtn">行动：野战</button>
           <button id="siegeBtn">行动：攻城</button>
+          <button id="dispatchBtn">行动：名录派出军团</button>
+          <button id="castArmySkillBtn">行动：军团名录发动技能</button>
           <button id="endActionBtn">结束行动</button>
         </div>
         <div class="status" id="statusLog"></div>
@@ -56,8 +67,12 @@
         <div id="tileInfo">请点击地图地块</div>
         <h3>城池</h3>
         <div id="cityInfo"></div>
+        <h3>城池人物名录（准备可配装）</h3>
+        <div id="cityRoster" class="roster"></div>
         <h3>军团</h3>
         <div id="armyInfo"></div>
+        <h3>行动军团人物名录（行动可放技能）</h3>
+        <div id="armyRoster" class="roster"></div>
         <h3>存档位（20）</h3>
         <div id="saveSlots" class="save-slots"></div>
       </aside>
