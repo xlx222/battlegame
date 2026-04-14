@@ -44,7 +44,8 @@ const game = {
   currentFactionIndex: 0,
   selected: null,
   winner: null,
-  selectedSlot: 1
+  selectedSlot: 1,
+  overlayContext: null
 };
 
 const ui = {};
@@ -84,8 +85,9 @@ function bindUI() {
   document.getElementById('incomeBtn').onclick = collectIncome;
   document.getElementById('recruitBtn').onclick = recruitAtSelectedCity;
   document.getElementById('shopBtn').onclick = openShop;
+  document.getElementById('boostDevBtn').onclick = boostCityDevelopment;
+  document.getElementById('boostDefenseBtn').onclick = boostCityDefense;
   document.getElementById('hireBtn').onclick = hireGeneral;
-  document.getElementById('castCitySkillBtn').onclick = castCitySkill;
 
   document.getElementById('endPrepBtn').onclick = endFactionTurn;
   document.getElementById('moveBtn').onclick = moveArmy;
@@ -96,7 +98,10 @@ function bindUI() {
   document.getElementById('endActionBtn').onclick = endFactionTurn;
   document.getElementById('openCityCharactersBtn').onclick = openCityCharacterDirectory;
   document.getElementById('openWildCharactersBtn').onclick = openWildArmyDirectory;
-  document.getElementById('closeOverlayBtn').onclick = () => ui.centerRosterPanel.classList.add('hidden');
+  document.getElementById('closeOverlayBtn').onclick = () => {
+    game.overlayContext = null;
+    ui.centerRosterPanel.classList.add('hidden');
+  };
 
   document.getElementById('saveBtn').onclick = () => saveGame(game.selectedSlot);
   document.getElementById('loadBtn').onclick = () => loadGame(game.selectedSlot);
@@ -248,8 +253,9 @@ function setupCitiesAndArmies() {
     placed.push(c);
   }
 
-  game.cities = placed.map((p, idx) => {
-    const f = game.factions[idx % game.factions.length];
+  const groupedPlacements = assignCityPlacementsByFaction(placed);
+  game.cities = groupedPlacements.map((p, idx) => {
+    const f = game.factions[p.factionIndex % game.factions.length];
     const isCapital = idx < game.factions.length;
     if (isCapital) f.capitals = [CITY_NAME_POOL[idx]];
     return {
@@ -259,8 +265,8 @@ function setupCitiesAndArmies() {
       y: p.y,
       owner: f.id,
       isCapital,
-      development: isCapital ? 8 : 5,
-      defense: isCapital ? 6 : 4,
+      development: 20 + Math.floor(Math.random() * 31),
+      defense: 1 + Math.floor(Math.random() * 5),
       governorPolitics: 65 + Math.floor(Math.random() * 30),
       garrison: isCapital ? 9000 : 4600,
       besieged: false,
@@ -298,6 +304,23 @@ function setupCitiesAndArmies() {
       skillUsedThisTurn: false
     };
   });
+}
+
+function assignCityPlacementsByFaction(placed) {
+  const sorted = [...placed].sort((a, b) => a.x - b.x || a.y - b.y);
+  const factions = game.factions.length;
+  const result = [];
+  for (let i = 0; i < sorted.length; i++) {
+    const factionIndex = Math.floor((i * factions) / sorted.length);
+    result.push({ ...sorted[i], factionIndex });
+  }
+  const capitals = [];
+  for (let i = 0; i < factions; i++) {
+    const start = Math.floor((i * sorted.length) / factions);
+    capitals.push(start);
+  }
+  return capitals.map((idx, fidx) => ({ ...result[idx], factionIndex: fidx }))
+    .concat(result.filter((_, idx) => !capitals.includes(idx)));
 }
 function randomTroopRatio() {
   const a = 20 + Math.floor(Math.random() * 41);
@@ -416,14 +439,10 @@ function renderCityRoster(city) {
       主动:${g.skill} / 被动:${g.passiveSkill}<br>
       装备:${g.equipment.length ? g.equipment.map(e => e.name).join('、') : '无'}<br>
       <button class="small-btn" data-equip="${idx}">配装</button>
-      <button class="small-btn" data-skill="${idx}">发动技能</button>
     </div>
   `).join('');
   ui.cityRoster.querySelectorAll('[data-equip]').forEach(btn => {
     btn.onclick = () => equipCharacter(city, Number(btn.dataset.equip));
-  });
-  ui.cityRoster.querySelectorAll('[data-skill]').forEach(btn => {
-    btn.onclick = () => triggerCharacterSkillInCity(city, Number(btn.dataset.skill));
   });
 }
 
@@ -479,6 +498,7 @@ function sortedCharacters(chars) {
 }
 
 function openCharacterOverlay(title, characters, context) {
+  game.overlayContext = context || null;
   ui.overlayTitle.textContent = title;
   ui.overlayBody.innerHTML = characters.map((g, idx) => {
     const canCast = canCastSkillFromContext(context);
@@ -507,7 +527,7 @@ function openCharacterOverlay(title, characters, context) {
 }
 
 function canCastSkillFromContext(context) {
-  return (context.source === 'city' || context.source === 'wild') && game.phase === 'prep';
+  return false;
 }
 
 function castSkillFromOverlay(general, context) {
@@ -517,6 +537,13 @@ function castSkillFromOverlay(general, context) {
   city.defense += 1;
   appendLog(`${city.name} 的 ${general.name} 发动【${general.skill}】，城防+1。`);
   updatePanels();
+}
+
+function openSimpleOverlay(title, htmlBody, context = null) {
+  game.overlayContext = context;
+  ui.overlayTitle.textContent = title;
+  ui.overlayBody.innerHTML = htmlBody;
+  ui.centerRosterPanel.classList.remove('hidden');
 }
 
 function recruitAtSelectedCity() {
@@ -538,14 +565,31 @@ function openShop() {
   if (game.phase !== 'prep') return appendLog('商店仅准备阶段开放。');
   const city = getSelectedCityOwned();
   if (!city) return;
+  if (!city.shopItems.length) return appendLog('商店暂无货物。');
+  openSimpleOverlay(`${city.name} 商店`, city.shopItems.map((item, idx) => `
+    <tr>
+      <td>${item.name}</td>
+      <td>装备增益 +${item.bonus}</td>
+      <td>${item.price}</td>
+      <td><button class="small-btn" data-buyitem="${idx}">购买</button></td>
+    </tr>
+  `).join(''), { source: 'shop', cityId: city.id });
+  ui.overlayBody.querySelectorAll('[data-buyitem]').forEach((btn) => {
+    btn.onclick = () => buyShopItem(city.id, Number(btn.dataset.buyitem));
+  });
+}
+
+function buyShopItem(cityId, itemIndex) {
+  const city = game.cities.find(c => c.id === cityId);
+  if (!city) return appendLog('商店城市信息已失效。');
+  const item = city.shopItems[itemIndex];
+  if (!item) return appendLog('该商品不存在。');
   const faction = getFaction(currentFactionId());
-  const pick = city.shopItems[Math.floor(Math.random() * city.shopItems.length)];
-  if (!pick) return appendLog('商店暂无货物。');
-  if (faction.money < pick.price) return appendLog(`购买 ${pick.name} 需要 ${pick.price} 钱。`);
+  if (faction.money < item.price) return appendLog(`购买 ${item.name} 需要 ${item.price} 钱。`);
   if (!city.characters.length) return appendLog('该城无人可配装。');
-  faction.money -= pick.price;
-  city.characters[0].equipment.push(pick);
-  appendLog(`${city.name} 商店购买 ${pick.name}，花费 ${pick.price}，已给 ${city.characters[0].name}。`);
+  faction.money -= item.price;
+  city.characters[0].equipment.push(item);
+  appendLog(`${city.name} 购买 ${item.name} 成功，花费 ${item.price}，已给 ${city.characters[0].name}。`);
   updatePanels();
 }
 
@@ -571,22 +615,6 @@ function equipCharacter(city, index) {
   g.equipment.push(item);
   appendLog(`${g.name} 配置装备：${item.name}。`);
   updateSelectionInfo();
-}
-
-function castCitySkill() {
-  if (game.phase !== 'prep') return appendLog('当前不是准备阶段。');
-  const city = getSelectedCityOwned();
-  if (!city || !city.characters.length) return appendLog('该城无可发动技能武将。');
-  triggerCharacterSkillInCity(city, 0);
-}
-
-function triggerCharacterSkillInCity(city, idx) {
-  if (game.phase !== 'prep') return appendLog('当前不是准备阶段。');
-  const g = city.characters[idx];
-  if (!g) return;
-  city.defense += 1;
-  appendLog(`${city.name} 的 ${g.name} 发动【${g.skill}】，城防+1。`);
-  updatePanels();
 }
 
 function dispatchFromRoster() {
@@ -789,9 +817,36 @@ function triggerPassiveSkills() {
   const cities = game.cities.filter(c => c.owner === fid);
   for (const c of cities) {
     for (const g of c.characters) {
-      if (g.passiveSkill === '洞察') c.development = Math.min(12, c.development + 1);
+      if (g.passiveSkill === '洞察') c.development = Math.min(120, c.development + 1);
     }
   }
+}
+
+function boostCityDevelopment() {
+  if (game.phase !== 'prep') return appendLog('当前不是准备阶段。');
+  const city = getSelectedCityOwned();
+  if (!city) return;
+  const faction = getFaction(currentFactionId());
+  const cost = 3000;
+  if (faction.money < cost) return appendLog(`金钱不足 ${cost}。`);
+  faction.money -= cost;
+  const gain = Math.floor(Math.random() * 21);
+  city.development += gain;
+  appendLog(`${city.name} 建设开发成功，开发度 +${gain}（花费${cost}）。`);
+  updatePanels();
+}
+
+function boostCityDefense() {
+  if (game.phase !== 'prep') return appendLog('当前不是准备阶段。');
+  const city = getSelectedCityOwned();
+  if (!city) return;
+  const faction = getFaction(currentFactionId());
+  const cost = 3000;
+  if (faction.money < cost) return appendLog(`金钱不足 ${cost}。`);
+  faction.money -= cost;
+  city.defense += 1;
+  appendLog(`${city.name} 建设城防成功，城防 +1（花费${cost}）。`);
+  updatePanels();
 }
 
 function checkVictory() {
